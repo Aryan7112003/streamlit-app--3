@@ -1,7 +1,6 @@
 import streamlit as st
-import pandas as pd
 import numpy as np
-import plotly.graph_objects as go
+import pandas as pd
 from datetime import datetime, timedelta
 
 # App title
@@ -35,26 +34,15 @@ if uploaded_file is not None:
         next_dates = [datetime.today() + timedelta(days=i) for i in range(1, 6)]
         next_dates_str = [date.strftime('%Y-%m-%d') for date in next_dates]
 
-        # Create a plot using Plotly
-        fig = go.Figure()
+        # Create DataFrame for predicted values to display in chart
+        prediction_data = data[['Close', 'Moving_Avg']].copy()
+        prediction_data = prediction_data.append(pd.DataFrame({
+            'Close': predicted_prices,
+            'Moving_Avg': [last_moving_avg] * 5
+        }, index=pd.to_datetime(next_dates_str)))
 
-        # Add actual prices and moving averages to the plot
-        fig.add_trace(go.Scatter(x=data.index, y=data['Close'], mode='lines', name='Actual Prices', line=dict(color='blue')))
-        fig.add_trace(go.Scatter(x=data.index, y=data['Moving_Avg'], mode='lines', name='Moving Average', line=dict(color='green')))
-        
-        # Add predicted prices (next 5 days) to the plot
-        fig.add_trace(go.Scatter(x=next_dates_str, y=predicted_prices, mode='lines', name='Predicted Prices (Next 5 Days)', line=dict(color='red')))
-
-        # Update plot layout
-        fig.update_layout(
-            title="Apple Stock Price Prediction using Moving Average",
-            xaxis_title="Date",
-            yaxis_title="Stock Price",
-            template="plotly_dark"
-        )
-
-        # Display the plot
-        st.plotly_chart(fig)
+        # Use Streamlit's native line chart
+        st.line_chart(prediction_data[['Close', 'Moving_Avg']])
 
         # Display the predicted prices for the next 5 days
         predicted_df = pd.DataFrame({
