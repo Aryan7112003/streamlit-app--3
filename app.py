@@ -13,6 +13,9 @@ if uploaded_file is not None:
     # Load the CSV file
     data = pd.read_csv(uploaded_file)
 
+    # Display column names to help debug
+    st.write("Columns in the uploaded file:", data.columns)
+
     # Check for proper columns (assuming 'Date' and 'Close' columns)
     if 'Date' in data.columns and 'Close' in data.columns:
         # Convert 'Date' column to datetime
