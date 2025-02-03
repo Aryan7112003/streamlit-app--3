@@ -1,68 +1,80 @@
 import streamlit as st
+import yfinance as yf
 import pandas as pd
 import numpy as np
+from sklearn.preprocessing import MinMaxScaler
+import tensorflow as tf
+from tensorflow.keras.models import load_model
+import matplotlib.pyplot as plt
 from datetime import datetime, timedelta
 
+# Load the pre-trained model
+model = load_model("apple_stock_lstm_model.h5")
+
+# Function to create sequences
+def create_sequences(data, seq_len):
+    X = []
+    y = []
+    
+    for i in range(seq_len, len(data)):
+        X.append(data[i-seq_len:i, 0])  # Sequence of 'seq_len' time steps
+        y.append(data[i, 0])  # The next time step (target)
+    
+    return np.array(X), np.array(y)
+
 # App title
-st.title("Stock Price Prediction (Simple Moving Average)")
+st.title("Apple Stock Price Prediction using LSTM")
 
-# File uploader for CSV
-uploaded_file = st.file_uploader("Choose a CSV file with stock data", type="csv")
+# User input for stock symbol
+stock_symbol = st.text_input("Enter stock symbol (e.g., AAPL)", "AAPL")
 
-if uploaded_file is not None:
-    # Load the CSV file
-    data = pd.read_csv(uploaded_file)
+# Get today's date
+today = datetime.today().strftime('%Y-%m-%d')
 
-    # Display columns and first few rows for debugging
-    st.write("Columns in the uploaded file:", data.columns)
-    st.write("First few rows of the uploaded data:", data.head())
+# Download stock data up to today
+data = yf.download(stock_symbol, start="2015-01-01", end=today)
 
-    # Select numeric columns
-    numeric_columns = data.select_dtypes(include=[np.number]).columns
+# Display the first few rows of data
+st.write("Data Preview:", data.head())
 
-    if len(numeric_columns) == 0:
-        st.error("No numeric columns found in the CSV file.")
-    else:
-        # Assuming the first numeric column for analysis
-        target_column = numeric_columns[0]
+# Normalize data
+scaler = MinMaxScaler(feature_range=(0, 1))
+scaled_data = scaler.fit_transform(data[['Close']].values)
 
-        # Display the selected column for clarity
-        st.write(f"Using column '{target_column}' for analysis.")
+# Create sequences
+SEQ_LEN = 60
+X, y = create_sequences(scaled_data, SEQ_LEN)
 
-        # Ensure the selected column is numeric (convert errors to NaN)
-        data[target_column] = pd.to_numeric(data[target_column], errors='coerce')
+# Predict on the last sequence and predict the next 5 days
+last_sequence = X[-1].reshape(1, SEQ_LEN, 1)
+predicted_prices = []
 
-        # Drop rows with NaN values in the target column
-        data.dropna(subset=[target_column], inplace=True)
+for i in range(5):  # Predicting the next 5 days
+    pred = model.predict(last_sequence)
+    predicted_prices.append(pred[0, 0])
+    last_sequence = np.append(last_sequence[:, 1:, :], pred.reshape(1, 1, 1), axis=1)
 
-        # Display the first few rows of the data after processing
-        st.write("Data Preview after cleaning:", data.head())
+predicted_prices = scaler.inverse_transform(np.array(predicted_prices).reshape(-1, 1))
 
-        # Calculate the moving average (e.g., 5-day window)
-        window_size = 5
-        data['Moving_Avg'] = data[target_column].rolling(window=window_size).mean()
+# Generate dates for the next 5 days
+next_dates = [datetime.today() + timedelta(days=i) for i in range(1, 6)]
+next_dates_str = [date.strftime('%Y-%m-%d') for date in next_dates]
 
-        # Predict the next 5 days (using the last moving average value)
-        last_moving_avg = data['Moving_Avg'].iloc[-1]
-        predicted_prices = [last_moving_avg] * 5  # Simple assumption: next 5 days will follow the last moving average
+# Plot predictions
+fig, ax = plt.subplots(figsize=(14, 7))
+ax.plot(np.arange(len(data)), scaler.inverse_transform(scaled_data), label="Actual Prices", color='blue')
+ax.plot(np.arange(len(data), len(data) + 5), predicted_prices, label="Predicted Prices (Next 5 Days)", color='red')
+ax.set_xticks(np.arange(len(data), len(data) + 5))
+ax.set_xticklabels(next_dates_str)
+ax.set_xlabel("Date")
+ax.set_ylabel("Stock Price")
+ax.legend()
+st.pyplot(fig)
 
-        # Generate dates for the next 5 days
-        next_dates = [datetime.today() + timedelta(days=i) for i in range(1, 6)]
-        next_dates_str = [date.strftime('%Y-%m-%d') for date in next_dates]
-
-        # Create DataFrame for predicted values to display in chart
-        prediction_data = data[[target_column, 'Moving_Avg']].copy()
-        prediction_data = prediction_data.append(pd.DataFrame({
-            target_column: predicted_prices,
-            'Moving_Avg': [last_moving_avg] * 5
-        }, index=pd.to_datetime(next_dates_str)))
-
-        # Use Streamlit's native line chart
-        st.line_chart(prediction_data[['Moving_Avg', target_column]])
-
-        # Display the predicted prices for the next 5 days
-        predicted_df = pd.DataFrame({
-            'Date': next_dates_str,
-            'Predicted Price': predicted_prices
-        })
-        st.write(predicted_df)
+# Display the predicted prices for the next 5 days
+st.write("Predicted Apple Stock Prices for the next 5 days:")
+predicted_df = pd.DataFrame({
+    'Date': next_dates_str,
+    'Predicted Price': predicted_prices.flatten()
+})
+st.write(predicted_df)
