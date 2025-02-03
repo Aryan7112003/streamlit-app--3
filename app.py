@@ -4,7 +4,7 @@ import numpy as np
 from datetime import datetime, timedelta
 
 # App title
-st.title("Apple Stock Price Prediction (Simple Moving Average)")
+st.title("Stock Price Prediction (Simple Moving Average)")
 
 # File uploader for CSV
 uploaded_file = st.file_uploader("Choose a CSV file with stock data", type="csv")
@@ -16,24 +16,27 @@ if uploaded_file is not None:
     # Display column names to help debug
     st.write("Columns in the uploaded file:", data.columns)
 
-    # Check for proper columns (assuming 'Date' and 'Close' columns)
-    if 'Date' in data.columns and 'Close' in data.columns:
-        # Convert 'Date' column to datetime
-        data['Date'] = pd.to_datetime(data['Date'])
-        data.set_index('Date', inplace=True)
+    # Check if there are any numeric columns
+    numeric_columns = data.select_dtypes(include=[np.number]).columns
 
-        # Ensure 'Close' is numeric (convert errors to NaN)
-        data['Close'] = pd.to_numeric(data['Close'], errors='coerce')
+    if len(numeric_columns) == 0:
+        st.error("No numeric columns found in the CSV file.")
+    else:
+        # Assuming the first numeric column is the one to use for the analysis
+        target_column = numeric_columns[0]
 
-        # Drop rows with NaN values in 'Close' column
-        data.dropna(subset=['Close'], inplace=True)
+        # Ensure the selected column is numeric (convert errors to NaN)
+        data[target_column] = pd.to_numeric(data[target_column], errors='coerce')
+
+        # Drop rows with NaN values in the target column
+        data.dropna(subset=[target_column], inplace=True)
 
         # Display the first few rows of the data
         st.write("Data Preview:", data.head())
 
         # Calculate the moving average (e.g., 5-day window)
         window_size = 5
-        data['Moving_Avg'] = data['Close'].rolling(window=window_size).mean()
+        data['Moving_Avg'] = data[target_column].rolling(window=window_size).mean()
 
         # Predict the next 5 days (using the last moving average value)
         last_moving_avg = data['Moving_Avg'].iloc[-1]
@@ -44,14 +47,14 @@ if uploaded_file is not None:
         next_dates_str = [date.strftime('%Y-%m-%d') for date in next_dates]
 
         # Create DataFrame for predicted values to display in chart
-        prediction_data = data[['Close', 'Moving_Avg']].copy()
+        prediction_data = data[[target_column, 'Moving_Avg']].copy()
         prediction_data = prediction_data.append(pd.DataFrame({
-            'Close': predicted_prices,
+            target_column: predicted_prices,
             'Moving_Avg': [last_moving_avg] * 5
         }, index=pd.to_datetime(next_dates_str)))
 
         # Use Streamlit's native line chart
-        st.line_chart(prediction_data[['Close', 'Moving_Avg']])
+        st.line_chart(prediction_data[['Moving_Avg', target_column]])
 
         # Display the predicted prices for the next 5 days
         predicted_df = pd.DataFrame({
@@ -59,5 +62,3 @@ if uploaded_file is not None:
             'Predicted Price': predicted_prices
         })
         st.write(predicted_df)
-    else:
-        st.error("The CSV file must contain 'Date' and 'Close' columns.")
