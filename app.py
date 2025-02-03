@@ -17,46 +17,52 @@ if uploaded_file is not None:
     st.write("Columns in the uploaded file:", data.columns)
     st.write("First few rows of the uploaded data:", data.head())
 
-    # Assuming the first numeric column for analysis
-    target_column = data.select_dtypes(include=[np.number]).columns[0]
+    # Select numeric columns
+    numeric_columns = data.select_dtypes(include=[np.number]).columns
 
-    # Display the selected column for clarity
-    st.write(f"Using column '{target_column}' for analysis.")
+    if len(numeric_columns) == 0:
+        st.error("No numeric columns found in the CSV file.")
+    else:
+        # Assuming the first numeric column for analysis
+        target_column = numeric_columns[0]
 
-    # Ensure the selected column is numeric (convert errors to NaN)
-    data[target_column] = pd.to_numeric(data[target_column], errors='coerce')
+        # Display the selected column for clarity
+        st.write(f"Using column '{target_column}' for analysis.")
 
-    # Drop rows with NaN values in the target column
-    data.dropna(subset=[target_column], inplace=True)
+        # Ensure the selected column is numeric (convert errors to NaN)
+        data[target_column] = pd.to_numeric(data[target_column], errors='coerce')
 
-    # Display the first few rows of the data after processing
-    st.write("Data Preview after cleaning:", data.head())
+        # Drop rows with NaN values in the target column
+        data.dropna(subset=[target_column], inplace=True)
 
-    # Calculate the moving average (e.g., 5-day window)
-    window_size = 5
-    data['Moving_Avg'] = data[target_column].rolling(window=window_size).mean()
+        # Display the first few rows of the data after processing
+        st.write("Data Preview after cleaning:", data.head())
 
-    # Predict the next 5 days (using the last moving average value)
-    last_moving_avg = data['Moving_Avg'].iloc[-1]
-    predicted_prices = [last_moving_avg] * 5  # Simple assumption: next 5 days will follow the last moving average
+        # Calculate the moving average (e.g., 5-day window)
+        window_size = 5
+        data['Moving_Avg'] = data[target_column].rolling(window=window_size).mean()
 
-    # Generate dates for the next 5 days
-    next_dates = [datetime.today() + timedelta(days=i) for i in range(1, 6)]
-    next_dates_str = [date.strftime('%Y-%m-%d') for date in next_dates]
+        # Predict the next 5 days (using the last moving average value)
+        last_moving_avg = data['Moving_Avg'].iloc[-1]
+        predicted_prices = [last_moving_avg] * 5  # Simple assumption: next 5 days will follow the last moving average
 
-    # Create DataFrame for predicted values to display in chart
-    prediction_data = data[[target_column, 'Moving_Avg']].copy()
-    prediction_data = prediction_data.append(pd.DataFrame({
-        target_column: predicted_prices,
-        'Moving_Avg': [last_moving_avg] * 5
-    }, index=pd.to_datetime(next_dates_str)))
+        # Generate dates for the next 5 days
+        next_dates = [datetime.today() + timedelta(days=i) for i in range(1, 6)]
+        next_dates_str = [date.strftime('%Y-%m-%d') for date in next_dates]
 
-    # Use Streamlit's native line chart
-    st.line_chart(prediction_data[['Moving_Avg', target_column]])
+        # Create DataFrame for predicted values to display in chart
+        prediction_data = data[[target_column, 'Moving_Avg']].copy()
+        prediction_data = prediction_data.append(pd.DataFrame({
+            target_column: predicted_prices,
+            'Moving_Avg': [last_moving_avg] * 5
+        }, index=pd.to_datetime(next_dates_str)))
 
-    # Display the predicted prices for the next 5 days
-    predicted_df = pd.DataFrame({
-        'Date': next_dates_str,
-        'Predicted Price': predicted_prices
-    })
-    st.write(predicted_df)
+        # Use Streamlit's native line chart
+        st.line_chart(prediction_data[['Moving_Avg', target_column]])
+
+        # Display the predicted prices for the next 5 days
+        predicted_df = pd.DataFrame({
+            'Date': next_dates_str,
+            'Predicted Price': predicted_prices
+        })
+        st.write(predicted_df)
