@@ -1,6 +1,6 @@
 import streamlit as st
-import numpy as np
 import pandas as pd
+import numpy as np
 from datetime import datetime, timedelta
 
 # App title
@@ -18,6 +18,12 @@ if uploaded_file is not None:
         # Convert 'Date' column to datetime
         data['Date'] = pd.to_datetime(data['Date'])
         data.set_index('Date', inplace=True)
+
+        # Ensure 'Close' is numeric (convert errors to NaN)
+        data['Close'] = pd.to_numeric(data['Close'], errors='coerce')
+
+        # Drop rows with NaN values in 'Close' column
+        data.dropna(subset=['Close'], inplace=True)
 
         # Display the first few rows of the data
         st.write("Data Preview:", data.head())
