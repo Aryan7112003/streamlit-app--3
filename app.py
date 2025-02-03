@@ -10,23 +10,26 @@ st.title("Apple Stock Market Price & Prediction")
 uploaded_file = st.file_uploader("Upload Apple Stock Data CSV", type="csv")
 
 if uploaded_file is not None:
-    # Load CSV file and skip the first 2 rows (as per your file format)
+    # Load CSV file and clean column names
     data = pd.read_csv(uploaded_file, skiprows=2)
+    
+    # Strip spaces from column names to avoid KeyErrors
+    data.columns = data.columns.str.strip()
 
-    # Print column names for debugging
-    st.write("Actual Column Names in CSV:", list(data.columns))
+    # Print cleaned column names for debugging
+    st.write("Cleaned Column Names:", list(data.columns))
 
-    # Rename the first column to "Date" (Ensure this matches your actual column name)
+    # Rename the first column to "Date" if it's labeled incorrectly
     if "Price" in data.columns:
         data.rename(columns={'Price': 'Date'}, inplace=True)
 
     # Convert 'Date' column to datetime
     data['Date'] = pd.to_datetime(data['Date'], errors='coerce')
 
-    # Find the actual numeric columns (handle missing ones)
-    available_columns = [col for col in ['Close', 'High', 'Low', 'Open', 'Volume'] if col in data.columns]
-
     # Ensure numeric columns are properly formatted
+    numeric_columns = ['Close', 'High', 'Low', 'Open', 'Volume']
+    available_columns = [col for col in numeric_columns if col in data.columns]
+
     for col in available_columns:
         data[col] = pd.to_numeric(data[col], errors='coerce')
 
@@ -39,7 +42,7 @@ if uploaded_file is not None:
     # Get today's date
     today_date = datetime.today().strftime('%Y-%m-%d')
 
-    # Get today's market price (Check if "Close" exists)
+    # Get today's market price
     if "Close" in data.columns:
         latest_data = data[data['Date'] == data['Date'].max()]
         if not latest_data.empty:
@@ -48,7 +51,7 @@ if uploaded_file is not None:
         else:
             st.warning("No data available for today's market price.")
     else:
-        st.error("Column 'Close' not found in the CSV file.")
+        st.error("Column 'Close' not found in the CSV file. Please check column names.")
 
     # Calculate 5-day moving average if 'Close' exists
     if "Close" in data.columns:
